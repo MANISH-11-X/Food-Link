@@ -6,17 +6,22 @@ import markdown
 from datetime import datetime
 from bson.objectid import ObjectId
 from pymongo import MongoClient
-from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from sklearn.linear_model import LogisticRegression
 
 from google import genai
 
-genai_client = genai.Client(api_key="AQ.Ab8RN6Im0hAKItV1TCJSAgscOuFynaZg_ar5jMiDj2DY9nG8ew")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY is missing. Set it in .env or deployment environment.")
+genai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 urgency_training_data = [
     [48, 0], [42, 1], [36, 0], [32, 1], [30, 0],
@@ -81,11 +86,15 @@ def predict_food_urgency(expiry_date, food_type):
 
 app = Flask(__name__)
 
-app.secret_key = os.environ.get("SECRET_KEY", "foodbridge-dev-secret-change-me")
+app.secret_key = os.getenv("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY is missing. Set it in .env or deployment environment.")
 
 # MongoDB connection
-client = MongoClient("mongodb://localhost:27017")
-db = client["FoodBridge"]
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "FoodBridge")
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+db = client[MONGO_DB_NAME]
 
 surplus = db["surplus"]
 donarregdb = db["DonarRegistration"]
@@ -531,9 +540,6 @@ def logout():
     session.clear()
     return redirect(url_for("home"))
 
-from functools import wraps
-
-
 # NGO route protection
 def ngo_required(function):
     @wraps(function)
@@ -965,4 +971,4 @@ from demand_predictor import register_demand_routes
 register_demand_routes(app, db)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
